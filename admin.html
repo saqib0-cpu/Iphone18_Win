@@ -715,11 +715,8 @@
           <div class="record-card" style="animation-delay:${idx * 0.05}s">
             <div class="img-container">
               <img class="record-img"
-                data-id="${record._id}"
-                data-loaded="false"
+                id="img-${record._id}"
                 alt="Photo of ${record.name}"
-                loading="lazy"
-                onload="if(this.dataset.loaded==='true'){this.style.opacity=1;}"
                 style="opacity:0;transition:opacity 0.4s" />
               <div class="img-badge">${sizeStr}</div>
               <button class="delete-btn" onclick="deleteRecord('${record._id}')" title="Delete Record">🗑️</button>
@@ -735,35 +732,20 @@
         `;
       }).join("");
 
-      // Lazy-load photos one by one using IntersectionObserver
-      const imgObserver = new IntersectionObserver((entries) => {
-        entries.forEach(async entry => {
-          if (entry.isIntersecting) {
-            const img = entry.target;
-            const id = img.dataset.id;
-            if (id && img.dataset.loaded === "false") {
-              img.dataset.loaded = "loading";
-              imgObserver.unobserve(img);
-              try {
-                const res = await fetch(`/attendance/${id}/photo`);
-                const data = await res.json();
-                if (data.photo_base64) {
-                  img.dataset.loaded = "true";
-                  img.src = `data:image/jpeg;base64,${data.photo_base64}`;
-                } else {
-                  img.alt = "Photo unavailable";
-                  img.style.opacity = 1;
-                }
-              } catch(e) {
-                img.alt = "Photo unavailable";
-                img.style.opacity = 1;
-              }
-            }
+      // Load all photos directly
+      records.forEach(async (record) => {
+        try {
+          const res = await fetch(`/attendance/${record._id}/photo`);
+          const data = await res.json();
+          const img = document.getElementById(`img-${record._id}`);
+          if (img && data.photo_base64) {
+            img.onload = () => { img.style.opacity = 1; };
+            img.src = `data:image/jpeg;base64,${data.photo_base64}`;
           }
-        });
-      }, { rootMargin: "100px" });
-
-      document.querySelectorAll(".record-img[data-id]").forEach(img => imgObserver.observe(img));
+        } catch(e) {
+          // silently fail
+        }
+      });
 
     } catch (err) {
       grid.innerHTML = `
