@@ -709,13 +709,18 @@
       }
 
       grid.innerHTML = records.map((record, idx) => {
-        const date     = new Date(record.timestamp).toLocaleString();
-        const photoSrc = `data:image/jpeg;base64,${record.photo_base64}`;
-        const sizeStr  = record.photo_size_kb ? `${record.photo_size_kb} KB` : "N/A";
+        const date    = new Date(record.timestamp).toLocaleString();
+        const sizeStr = record.photo_size_kb ? `${record.photo_size_kb} KB` : "N/A";
         return `
           <div class="record-card" style="animation-delay:${idx * 0.05}s">
             <div class="img-container">
-              <img class="record-img" src="${photoSrc}" alt="Photo of ${record.name}" loading="lazy" />
+              <img class="record-img"
+                src=""
+                data-id="${record._id}"
+                alt="Photo of ${record.name}"
+                loading="lazy"
+                onload="this.style.opacity=1"
+                style="opacity:0;transition:opacity 0.4s" />
               <div class="img-badge">${sizeStr}</div>
               <button class="delete-btn" onclick="deleteRecord('${record._id}')" title="Delete Record">🗑️</button>
             </div>
@@ -729,6 +734,28 @@
           </div>
         `;
       }).join("");
+
+      // Lazy-load photos one by one using IntersectionObserver
+      const imgObserver = new IntersectionObserver((entries) => {
+        entries.forEach(async entry => {
+          if (entry.isIntersecting) {
+            const img = entry.target;
+            const id = img.dataset.id;
+            if (id && !img.src.startsWith("data:")) {
+              imgObserver.unobserve(img);
+              try {
+                const res = await fetch(`/attendance/${id}/photo`);
+                const data = await res.json();
+                img.src = `data:image/jpeg;base64,${data.photo_base64}`;
+              } catch(e) {
+                img.alt = "Photo unavailable";
+              }
+            }
+          }
+        });
+      }, { rootMargin: "100px" });
+
+      document.querySelectorAll(".record-img[data-id]").forEach(img => imgObserver.observe(img));
 
     } catch (err) {
       grid.innerHTML = `

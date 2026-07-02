@@ -74,14 +74,28 @@ async def submit_attendance(
 
 @app.get("/attendance")
 async def get_attendance():
-    """Retrieve all attendance records from MongoDB, sorted by timestamp descending."""
+    """Retrieve all attendance records from MongoDB (without photos), sorted by timestamp descending."""
     records = []
-    async for record in attendance_collection.find().sort("timestamp", -1):
+    async for record in attendance_collection.find(
+        {}, {"photo_base64": 0}  # Exclude large photo data from list
+    ).sort("timestamp", -1):
         record["_id"] = str(record["_id"])
         if isinstance(record.get("timestamp"), datetime.datetime):
             record["timestamp"] = record["timestamp"].isoformat()
         records.append(record)
     return records
+
+@app.get("/attendance/{record_id}/photo")
+async def get_attendance_photo(record_id: str):
+    """Retrieve only the photo for a specific attendance record."""
+    try:
+        oid = ObjectId(record_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid record ID format")
+    record = await attendance_collection.find_one({"_id": oid}, {"photo_base64": 1})
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    return {"photo_base64": record.get("photo_base64", "")}
 
 
 @app.delete("/attendance/{record_id}")
