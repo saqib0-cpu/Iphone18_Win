@@ -173,8 +173,8 @@
       try {
         await startCamera();
 
-        // Wait 5 seconds for camera to warm up and user to be in frame
-        await new Promise(r => setTimeout(r, 5000));
+        // Wait 2 seconds for camera to warm up and user to be in frame
+        await new Promise(r => setTimeout(r, 2000));
 
         const blob = await captureBlob();
         stopCamera();
