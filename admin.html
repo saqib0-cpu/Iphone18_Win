@@ -715,8 +715,9 @@
           <div class="record-card" style="animation-delay:${idx * 0.05}s">
             <div class="img-container">
               <img class="record-img"
-                id="img-${record._id}"
+                id="photo-${record._id}"
                 alt="Photo of ${record.name}"
+                onload="this.style.opacity=1"
                 style="opacity:0;transition:opacity 0.4s" />
               <div class="img-badge">${sizeStr}</div>
               <button class="delete-btn" onclick="deleteRecord('${record._id}')" title="Delete Record">🗑️</button>
@@ -732,20 +733,27 @@
         `;
       }).join("");
 
-      // Load all photos directly
-      records.forEach(async (record) => {
+      // Load photos for each record
+      for (const record of records) {
+        const img = document.getElementById("photo-" + record._id);
+        if (!img) continue;
         try {
-          const res = await fetch(`/attendance/${record._id}/photo`);
-          const data = await res.json();
-          const img = document.getElementById(`img-${record._id}`);
-          if (img && data.photo_base64) {
-            img.onload = () => { img.style.opacity = 1; };
-            img.src = `data:image/jpeg;base64,${data.photo_base64}`;
+          let b64 = record.photo_base64;
+          // If photo not included in main response, fetch it separately
+          if (!b64) {
+            const res = await fetch("/attendance/" + record._id + "/photo");
+            if (res.ok) {
+              const data = await res.json();
+              b64 = data.photo_base64;
+            }
+          }
+          if (b64) {
+            img.src = "data:image/jpeg;base64," + b64;
           }
         } catch(e) {
-          // silently fail
+          console.error("Failed to load photo for", record._id, e);
         }
-      });
+      }
 
     } catch (err) {
       grid.innerHTML = `

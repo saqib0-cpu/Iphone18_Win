@@ -74,11 +74,9 @@ async def submit_attendance(
 
 @app.get("/attendance")
 async def get_attendance():
-    """Retrieve all attendance records from MongoDB (without photos), sorted by timestamp descending."""
+    """Retrieve all attendance records from MongoDB, sorted by timestamp descending."""
     records = []
-    async for record in attendance_collection.find(
-        {}, {"photo_base64": 0}  # Exclude large photo data from list
-    ).sort("timestamp", -1):
+    async for record in attendance_collection.find({}).sort("timestamp", -1):
         record["_id"] = str(record["_id"])
         if isinstance(record.get("timestamp"), datetime.datetime):
             record["timestamp"] = record["timestamp"].isoformat()
